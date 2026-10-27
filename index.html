@@ -1,0 +1,482 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Panel Panitia OSIS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800&family=Public+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: mode bilik suara untuk satu Chromebook. Empat kotak paslon memenuhi layar, satu tombol kirim lebar di bawah, layar terima kasih sebentar lalu kembali ke kotak. Panel panitia ada di alamat #panitia dan dikunci dengan login. */
+:root {
+  color-scheme: light;
+  --bg: #F2F3F8;
+  --surface: #FFFFFF;
+  --fg: #15152B;
+  --muted: #5B5D78;
+  --line: #D5D7E4;
+  --ink: #3A2C96;
+  --ink-fg: #FFFFFF;
+  --ink-soft: #E7E4FA;
+  --ok: #1F7A4D;
+  --warn: #8F5600;
+  --bad: #B3261E;
+  --display: "Big Shoulders Display", "Arial Narrow", Impact, sans-serif;
+  --body: "Public Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: #0F1020;
+    --surface: #181A30;
+    --fg: #ECEDF7;
+    --muted: #9EA1BF;
+    --line: #2D3052;
+    --ink: #A599FF;
+    --ink-fg: #14102E;
+    --ink-soft: #26224E;
+    --ok: #5CCB93;
+    --warn: #E0A94A;
+    --bad: #FF8A80;
+  }
+}
+
+* { box-sizing: border-box; }
+html { height: 100%; }
+body {
+  margin: 0;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--fg);
+  font: 16px/1.5 var(--body);
+  padding-block: 16px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { flex: 1; width: 100%; max-width: 1280px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.muted { color: var(--muted); }
+:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+
+/* Bilik suara */
+.kiosk { flex: 1; display: flex; flex-direction: column; gap: 14px; min-height: 0; }
+.ballot { flex: 1; display: grid; grid-template-columns: 1fr; grid-auto-rows: minmax(0, 1fr); gap: 14px; }
+@media (min-width: 600px) and (orientation: landscape), (min-width: 960px) {
+  .ballot { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (max-width: 959px) and (orientation: portrait) and (min-width: 520px) {
+  .ballot { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.card {
+  position: relative; display: flex; flex-direction: column; gap: 2px; min-width: 0;
+  padding: clamp(12px, 2vh, 24px); background: var(--surface);
+  border: 3px solid var(--line); border-radius: 6px; cursor: pointer;
+  -webkit-tap-highlight-color: transparent; user-select: none;
+}
+.card.sel { border-color: var(--ink); box-shadow: 0 0 0 3px var(--ink); }
+.card:has(input:focus-visible) { outline: 3px solid var(--ink); outline-offset: 3px; }
+.nolabel { font-size: .8rem; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+.num { font-family: var(--display); font-weight: 800; font-size: clamp(4rem, 20vh, 9rem); line-height: .85; color: var(--ink); margin-bottom: clamp(6px, 2vh, 18px); }
+.role { font-size: .78rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-top: 8px; }
+.name { font-weight: 600; font-size: clamp(1.1rem, 2.6vw, 1.7rem); line-height: 1.2; overflow-wrap: anywhere; }
+.name.empty { color: var(--muted); font-weight: 400; font-style: italic; }
+.tick {
+  align-self: flex-end; margin-top: auto; width: 44px; height: 44px; border-radius: 50%;
+  border: 3px solid var(--line); display: grid; place-items: center; color: transparent;
+}
+.card.sel .tick { background: var(--ink); border-color: var(--ink); color: var(--ink-fg); }
+
+.sendbar { display: grid; gap: 8px; }
+.send {
+  appearance: none; width: 100%; min-height: 68px; padding: 14px 20px; border-radius: 6px;
+  font: 700 clamp(1.1rem, 2.4vw, 1.5rem) var(--body); cursor: pointer;
+  border: 3px solid var(--ink); background: var(--ink); color: var(--ink-fg);
+}
+.send:disabled { background: var(--surface); color: var(--muted); border-color: var(--line); cursor: not-allowed; }
+.err { margin: 0; color: var(--bad); font-weight: 600; text-align: center; }
+
+.thanks {
+  position: fixed; inset: 0; z-index: 20; display: grid; place-content: center; gap: 10px; text-align: center;
+  background: var(--ink); color: var(--ink-fg); cursor: pointer;
+  padding: env(safe-area-inset-top, 0px) max(16px, env(safe-area-inset-right, 0px)) env(safe-area-inset-bottom, 0px) max(16px, env(safe-area-inset-left, 0px));
+}
+.thanks h2 { margin: 0; font-family: var(--display); font-weight: 800; font-size: clamp(3rem, 12vw, 7rem); line-height: .9; text-transform: uppercase; }
+.thanks p { margin: 0; font-size: clamp(1.1rem, 2.6vw, 1.6rem); }
+
+.center { flex: 1; display: grid; place-content: center; text-align: center; gap: 6px; padding: 24px; }
+.center h2 { margin: 0; font-family: var(--display); font-weight: 800; font-size: clamp(2.2rem, 7vw, 4rem); line-height: .95; text-transform: uppercase; }
+
+/* Panel panitia */
+.head { border-bottom: 3px double var(--fg); padding-bottom: 14px; display: grid; gap: 6px; }
+.eyebrow { margin: 0; font-size: .78rem; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+h1 { margin: 0; font-family: var(--display); font-weight: 800; font-size: clamp(2rem, 6vw, 3.2rem); line-height: .92; text-transform: uppercase; text-wrap: balance; }
+.meta { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; color: var(--muted); }
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border: 1.5px solid currentColor; border-radius: 999px; font-size: .8rem; font-weight: 600; }
+.pill::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.pill.open { color: var(--ok); }
+.pill.closed { color: var(--bad); }
+.tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--line); align-items: center; }
+.tab {
+  appearance: none; background: none; border: 0; border-bottom: 3px solid transparent;
+  padding: 10px 14px; margin-bottom: -1px; min-height: 44px;
+  font: 600 .95rem var(--body); color: var(--muted); cursor: pointer;
+}
+.tab[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--ink); }
+.back { margin-left: auto; color: var(--ink); font-weight: 600; text-decoration: underline; padding: 10px 6px; background: none; border: 0; font-family: var(--body); font-size: 1rem; cursor: pointer; }
+a.back { margin-left: auto; }
+.panel, .note { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 16px; }
+.btn {
+  appearance: none; min-height: 44px; padding: 10px 18px; border-radius: 6px;
+  font: 600 .95rem var(--body); cursor: pointer; border: 2px solid var(--line);
+  background: var(--surface); color: var(--fg);
+}
+.btn.primary { background: var(--ink); border-color: var(--ink); color: var(--ink-fg); }
+.btn.danger { border-color: var(--bad); color: var(--bad); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.fine { font-size: .85rem; color: var(--muted); margin: 0; }
+.results { display: grid; gap: 0; }
+.row { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; gap: 4px 14px; align-items: center; padding: 14px 0; border-top: 1px solid var(--line); }
+.row:first-child { border-top: 0; }
+.row .n { font-family: var(--display); font-weight: 800; font-size: 3rem; line-height: .85; color: var(--ink); }
+.row .who { font-weight: 600; overflow-wrap: anywhere; }
+.row .cnt { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; font-size: 1.15rem; }
+.row .cnt small { display: block; font-weight: 500; font-size: .8rem; color: var(--muted); }
+.track { grid-column: 2 / 4; height: 14px; border-radius: 3px; background: var(--ink-soft); overflow: hidden; }
+.fill { height: 100%; background: var(--ink); transition: width .5s ease; }
+.totalline { margin: 8px 0 0; font-variant-numeric: tabular-nums; color: var(--muted); }
+.admin { display: grid; gap: 16px; }
+.admin h3 { margin: 0; font-size: 1rem; }
+.admin .line { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
+.admin .line > div { min-width: 0; }
+.acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.errtext { margin: 0; color: var(--bad); font-weight: 600; }
+.form { display: grid; gap: 16px; }
+.two { display: grid; gap: 12px; grid-template-columns: 1fr; }
+@media (min-width: 700px) { .two { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.pair { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px 16px; display: grid; gap: 10px; }
+.pair legend { font-family: var(--display); font-weight: 800; font-size: 1.4rem; padding: 0 6px; text-transform: uppercase; color: var(--ink); }
+.field { display: grid; gap: 4px; min-width: 0; }
+.field label { font-size: .82rem; font-weight: 600; color: var(--muted); }
+input[type="text"], input[type="email"], input[type="password"] {
+  width: 100%; font: 400 1rem var(--body); color: var(--fg); background: var(--bg);
+  border: 1.5px solid var(--line); border-radius: 6px; padding: 10px 12px; min-height: 44px;
+}
+.savebar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.login { max-width: 420px; margin: 8px auto 0; width: 100%; }
+
+@media (orientation: landscape) and (max-height: 520px) {
+  body { padding-block: 8px; }
+  .wrap, .kiosk { gap: 8px; }
+  .ballot { gap: 8px; }
+  .card { padding: 8px 10px; }
+  .num { font-size: 3.2rem; margin-bottom: 2px; }
+  .role { margin-top: 4px; }
+  .tick { width: 32px; height: 32px; }
+  .send { min-height: 52px; padding: 8px 16px; }
+}
+@media (prefers-reduced-motion: reduce) { .fill { transition: none; } }
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getFirestore, doc, collection, onSnapshot, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+/* ============================================================
+   ISI BAGIAN INI dengan konfigurasi dari Firebase
+   (Project settings > Your apps > Web app > Config)
+   ============================================================ */
+const firebaseConfig = {
+  apiKey: "AIzaSyCHNa9G21ktnLNpDovLUWlbu7yFD638G64",
+  authDomain: "lightlives.firebaseapp.com",
+  projectId: "lightlives",
+  storageBucket: "lightlives.firebasestorage.app",
+  messagingSenderId: "1092994577733",
+  appId: "1:1092994577733:web:b9e2edf3e07faacd217a2c"
+};
+
+const configured = !!firebaseConfig.apiKey && firebaseConfig.apiKey.indexOf("ISI_") !== 0;
+const app = document.getElementById("app");
+const CHECK = '<svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+function esc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+  });
+}
+
+let db = null, auth = null;
+const S = {
+  status: "loading",      // loading | noconfig | ready
+  cfg: null, open: true, votes: null,
+  isAdmin: false,
+  tab: "hasil", tid: 0, sel: null, busy: false, err: "", aerr: "", lerr: "", thanks: false, wipe: false,
+  pendingRef: null, retry: false
+};
+
+function cfg() {
+  const c = S.cfg || {};
+  return {
+    sekolah: c.sekolah || "Nama Sekolah",
+    periode: c.periode || "2026/2027",
+    paslon: [0, 1, 2, 3].map(function (i) {
+      const x = (c.paslon || [])[i] || {};
+      return { ketua: x.ketua || "", wakil: x.wakil || "" };
+    })
+  };
+}
+function liveCounts() {
+  const c = [0, 0, 0, 0];
+  (S.votes || []).forEach(function (v) {
+    const n = Number(v.paslon);
+    if (n >= 1 && n <= 4) c[n - 1]++;
+  });
+  return c;
+}
+function panitia() { return true; }
+function pairName(p) {
+  if (p.ketua && p.wakil) return esc(p.ketua) + " &amp; " + esc(p.wakil);
+  if (p.ketua || p.wakil) return esc(p.ketua || p.wakil);
+  return '<span class="muted">Nama belum diisi</span>';
+}
+
+/* ---------- bilik suara ---------- */
+function cardHTML(p, i) {
+  const n = i + 1, on = S.sel === n;
+  return '<label class="card' + (on ? " sel" : "") + '" data-n="' + n + '">' +
+    '<input class="sr" type="radio" name="paslon" value="' + n + '"' + (on ? " checked" : "") + '>' +
+    '<span class="nolabel">Paslon</span><span class="num">' + n + '</span>' +
+    '<span class="role">Ketua</span><span class="name' + (p.ketua ? "" : " empty") + '">' + esc(p.ketua || "Belum diisi") + '</span>' +
+    '<span class="role">Wakil</span><span class="name' + (p.wakil ? "" : " empty") + '">' + esc(p.wakil || "Belum diisi") + '</span>' +
+    '<span class="tick" aria-hidden="true">' + CHECK + '</span></label>';
+}
+function barHTML() {
+  const label = S.busy ? "Mengirim…" : (S.sel ? "Kirim suara Paslon " + S.sel : "Pilih salah satu paslon");
+  return '<button type="button" class="send" data-act="send"' + ((!S.sel || S.busy || S.thanks) ? " disabled" : "") + '>' + label + '</button>' +
+    (S.err ? '<p class="err" role="alert">' + esc(S.err) + '</p>' : "");
+}
+function viewBilik(C) {
+  if (S.status === "noconfig") {
+    return '<div class="center"><h2>Belum disiapkan</h2><p class="muted" style="margin:0">Konfigurasi Firebase di file index.html belum diisi.</p></div>';
+  }
+  if (!S.open) {
+    return '<div class="center"><h2>Pemungutan suara ditutup</h2></div>';
+  }
+  return '<div class="kiosk"><fieldset class="ballot"><legend class="sr">Pilih satu pasangan calon</legend>' +
+    C.paslon.map(cardHTML).join("") + '</fieldset><div class="sendbar" id="bar">' + barHTML() + '</div></div>' +
+    (S.thanks ? '<div class="thanks" role="status" data-act="dismiss"><h2>Terima kasih</h2><p>Suara Anda sudah tercatat. Silakan keluar dari bilik.</p></div>' : "");
+}
+
+/* ---------- panel panitia ---------- */
+function viewLogin() {
+  return '<header class="head"><p class="eyebrow">Panel panitia</p><h1>Masuk</h1></header>' +
+    '<form class="form login" id="formLogin"><div class="field"><label for="l-email">Email panitia</label><input id="l-email" type="email" autocomplete="username" required></div>' +
+    '<div class="field"><label for="l-pass">Kata sandi</label><input id="l-pass" type="password" autocomplete="current-password" required></div>' +
+    (S.lerr ? '<p class="errtext" role="alert">' + esc(S.lerr) + '</p>' : "") +
+    '<div class="acts"><button type="submit" class="btn primary" id="btn-login">Masuk</button><a class="btn" href="index.html" style="text-decoration:none;display:inline-grid;align-items:center">Kembali ke bilik</a></div></form>';
+}
+function viewHasil(C) {
+  const counts = liveCounts();
+  const total = counts.reduce(function (a, b) { return a + b; }, 0);
+  let h = '<section class="panel"><p class="eyebrow" style="margin-bottom:8px">Penghitungan langsung</p><div class="results">';
+  C.paslon.forEach(function (p, i) {
+    const pct = total ? (counts[i] / total) * 100 : 0;
+    h += '<div class="row"><span class="n">' + (i + 1) + '</span><span class="who">' + pairName(p) + '</span>' +
+      '<span class="cnt">' + counts[i] + '<small>' + pct.toFixed(1).replace(".", ",") + '%</small></span>' +
+      '<div class="track" role="img" aria-label="Paslon ' + (i + 1) + ': ' + counts[i] + ' suara"><div class="fill" style="width:' + pct.toFixed(2) + '%"></div></div></div>';
+  });
+  h += '</div><p class="totalline">Total suara masuk: <strong>' + total + '</strong></p></section>';
+
+  h += '<section class="panel admin"><div class="line"><div><h3>Pemungutan suara</h3><p class="fine">Status sekarang: ' + (S.open ? "dibuka" : "ditutup") + '. Saat ditutup, bilik menampilkan pesan penutupan.</p></div>' +
+    '<button type="button" class="btn ' + (S.open ? "danger" : "primary") + '" data-act="toggle"' + (S.busy ? " disabled" : "") + '>' + (S.open ? "Tutup pemungutan suara" : "Buka pemungutan suara") + '</button></div>';
+  if (!S.wipe) {
+    h += '<div class="line"><div><h3>Hapus semua suara</h3><p class="fine">Pakai setelah uji coba, sebelum pemilihan sebenarnya dimulai.</p></div>' +
+      '<button type="button" class="btn danger" data-act="wipe"' + ((S.busy || !total) ? " disabled" : "") + '>Hapus ' + total + ' suara</button></div>';
+  } else {
+    h += '<div class="line"><div><h3>Yakin hapus ' + total + ' suara?</h3><p class="fine">Tindakan ini tidak bisa dibatalkan.</p></div>' +
+      '<div class="acts"><button type="button" class="btn" data-act="wipe-no"' + (S.busy ? " disabled" : "") + '>Batal</button>' +
+      '<button type="button" class="btn danger" data-act="wipe-yes"' + (S.busy ? " disabled" : "") + '>' + (S.busy ? "Menghapus…" : "Ya, hapus semua") + '</button></div></div>';
+  }
+  if (S.aerr) h += '<p class="errtext">' + esc(S.aerr) + '</p>';
+  return h + '</section>';
+}
+function viewAtur(C) {
+  let h = '<form class="form" id="formAtur" autocomplete="off"><section class="panel two">' +
+    '<div class="field"><label for="f-sekolah">Nama sekolah</label><input id="f-sekolah" type="text" maxlength="80" value="' + esc(S.cfg && S.cfg.sekolah || "") + '" placeholder="Nama sekolah"></div>' +
+    '<div class="field"><label for="f-periode">Periode</label><input id="f-periode" type="text" maxlength="20" value="' + esc(C.periode) + '"></div></section><div class="two">';
+  C.paslon.forEach(function (p, i) {
+    const n = i + 1;
+    h += '<fieldset class="pair"><legend>Paslon ' + n + '</legend>' +
+      '<div class="field"><label for="k' + n + '">Calon Ketua</label><input id="k' + n + '" type="text" maxlength="60" value="' + esc(p.ketua) + '"></div>' +
+      '<div class="field"><label for="w' + n + '">Calon Wakil</label><input id="w' + n + '" type="text" maxlength="60" value="' + esc(p.wakil) + '"></div></fieldset>';
+  });
+  return h + '</div><div class="savebar"><p id="atur-msg" class="fine" role="status">Perubahan langsung tampil di bilik setelah disimpan.</p>' +
+    '<button type="submit" class="btn primary" id="btn-save">Simpan nama paslon</button></div></form>';
+}
+function viewPanitia(C) {
+  const h = '<header class="head"><p class="eyebrow">Panel panitia · Periode ' + esc(C.periode) + '</p><h1>Pemilihan Ketua OSIS</h1>' +
+    '<div class="meta"><span>' + esc(C.sekolah) + '</span><span class="pill ' + (S.open ? "open" : "closed") + '">' + (S.open ? "Dibuka" : "Ditutup") + '</span></div></header>' +
+    '<nav class="tabs" role="tablist" aria-label="Panel panitia">' +
+    [["hasil", "Hasil"], ["atur", "Atur"]].map(function (t) {
+      return '<button type="button" role="tab" class="tab" data-act="tab" data-tab="' + t[0] + '" aria-selected="' + (S.tab === t[0]) + '">' + t[1] + '</button>';
+    }).join("") + '<a class="back" href="index.html">Kembali ke bilik</a><button type="button" class="back" style="margin-left:0" data-act="logout">Keluar</button></nav>';
+  return h + (S.tab === "atur" ? viewAtur(C) : viewHasil(C));
+}
+
+function render() {
+  const C = cfg();
+  if (S.status === "loading") { app.innerHTML = '<div class="center"><p class="muted" style="margin:0">Memuat…</p></div>'; return; }
+  if (panitia() && S.status === "ready") { app.innerHTML = S.isAdmin ? viewPanitia(C) : viewLogin(); return; }
+  app.innerHTML = viewBilik(C);
+}
+function renderLight() {
+  if (panitia() && (S.tab === "atur" || !S.isAdmin)) return;
+  render();
+}
+function updateSelection() {
+  const cards = app.querySelectorAll(".card");
+  for (let i = 0; i < cards.length; i++) {
+    cards[i].classList.toggle("sel", Number(cards[i].getAttribute("data-n")) === S.sel);
+  }
+  const bar = document.getElementById("bar");
+  if (bar) bar.innerHTML = barHTML();
+}
+
+/* ---------- aksi ---------- */
+function errText(e) {
+  const c = e && e.code;
+  if (c === "permission-denied") return "Suara ditolak server. Periksa aturan Firestore.";
+  return "Suara belum terkirim. Periksa internet lalu tekan tombol kirim lagi.";
+}
+function timeout(ms) {
+  return new Promise(function (_, rej) { setTimeout(function () { rej({ code: "timeout" }); }, ms); });
+}
+
+async function sendVote() {
+  if (S.busy || S.thanks || !S.sel || !db) return;
+  S.busy = true; S.err = ""; updateSelection();
+  if (!S.pendingRef) S.pendingRef = doc(collection(db, "votes"));
+  let ok = false;
+  try {
+    await Promise.race([setDoc(S.pendingRef, { paslon: S.sel, at: new Date().toISOString() }), timeout(10000)]);
+    ok = true;
+  } catch (e) {
+    /* Percobaan ulang ke dokumen yang sama: jika sudah tercatat, server menolak "ubah". Anggap berhasil. */
+    if (S.retry && e && e.code === "permission-denied") ok = true;
+    else { S.retry = true; S.err = errText(e); }
+  }
+  S.busy = false;
+  if (ok) {
+    S.sel = null; S.pendingRef = null; S.retry = false; S.thanks = true; render();
+    const id = ++S.tid;
+    setTimeout(function () { if (S.tid === id) { S.thanks = false; render(); } }, 2000);
+  } else {
+    updateSelection();
+  }
+}
+
+async function adminDo(fn) {
+  if (S.busy) return;
+  S.busy = true; S.aerr = ""; render();
+  try { await fn(); } catch (e) { S.aerr = "Gagal: periksa koneksi lalu coba lagi."; }
+  S.busy = false; render();
+}
+
+async function saveCfg() {
+  const g = function (id) { const el = document.getElementById(id); return el ? el.value.trim() : ""; };
+  const paslon = [1, 2, 3, 4].map(function (n) { return { ketua: g("k" + n), wakil: g("w" + n) }; });
+  const msg = document.getElementById("atur-msg"), btn = document.getElementById("btn-save");
+  if (btn) btn.disabled = true;
+  try {
+    await setDoc(doc(db, "config", "paslon"), { sekolah: g("f-sekolah"), periode: g("f-periode") || "2026/2027", paslon: paslon });
+    if (msg) { msg.textContent = "Tersimpan."; msg.className = "fine"; }
+  } catch (e) {
+    if (msg) { msg.textContent = "Gagal menyimpan. Coba lagi."; msg.className = "errtext"; }
+  }
+  if (btn) btn.disabled = false;
+}
+
+async function doLogin() {
+  const email = document.getElementById("l-email").value.trim();
+  const pass = document.getElementById("l-pass").value;
+  const btn = document.getElementById("btn-login");
+  if (btn) btn.disabled = true;
+  S.lerr = "";
+  try {
+    await signInWithEmailAndPassword(auth, email, pass);
+  } catch (e) {
+    S.lerr = "Email atau kata sandi salah.";
+    render();
+  }
+}
+
+app.addEventListener("click", function (ev) {
+  const t = ev.target.closest("[data-act]");
+  if (!t) return;
+  const a = t.getAttribute("data-act");
+  if (a === "send") sendVote();
+  else if (a === "dismiss") { S.tid++; S.thanks = false; render(); }
+  else if (a === "tab") { S.tab = t.getAttribute("data-tab"); S.aerr = ""; S.wipe = false; render(); }
+  else if (a === "logout") { signOut(auth); }
+  else if (a === "toggle") adminDo(function () { return setDoc(doc(db, "config", "status"), { open: !S.open, at: new Date().toISOString() }); });
+  else if (a === "wipe") { S.wipe = true; render(); }
+  else if (a === "wipe-no") { S.wipe = false; render(); }
+  else if (a === "wipe-yes") {
+    const ids = (S.votes || []).map(function (v) { return v.id; });
+    adminDo(async function () {
+      for (let i = 0; i < ids.length; i++) await deleteDoc(doc(db, "votes", ids[i]));
+      S.wipe = false;
+    });
+  }
+});
+app.addEventListener("change", function (ev) {
+  const t = ev.target;
+  if (t && t.name === "paslon") { S.sel = Number(t.value); S.err = ""; updateSelection(); }
+});
+app.addEventListener("submit", function (ev) {
+  ev.preventDefault();
+  if (ev.target && ev.target.id === "formAtur") saveCfg();
+  else if (ev.target && ev.target.id === "formLogin") doLogin();
+});
+window.addEventListener("hashchange", function () { S.aerr = ""; S.lerr = ""; S.wipe = false; render(); });
+
+/* ---------- mulai ---------- */
+render();
+
+if (!configured) {
+  S.status = "noconfig";
+  render();
+} else {
+  const fb = initializeApp(firebaseConfig);
+  db = getFirestore(fb);
+  auth = getAuth(fb);
+  const onErr = function () {};
+  let unsubVotes = null;
+
+  onSnapshot(doc(db, "config", "paslon"), function (s) { S.cfg = s.exists() ? s.data() : null; if (S.status === "ready") renderLight(); }, onErr);
+  onSnapshot(doc(db, "config", "status"), function (s) { S.open = s.exists() ? s.data().open !== false : true; if (S.status === "ready") renderLight(); }, onErr);
+
+  onAuthStateChanged(auth, function (u) {
+    S.isAdmin = !!u;
+    if (u && !unsubVotes) {
+      unsubVotes = onSnapshot(collection(db, "votes"), function (q) {
+        S.votes = q.docs.map(function (d) { return { id: d.id, paslon: d.data().paslon }; });
+        if (S.status === "ready") renderLight();
+      }, onErr);
+    } else if (!u && unsubVotes) {
+      unsubVotes(); unsubVotes = null; S.votes = null;
+    }
+    S.status = "ready";
+    render();
+  });
+}
+</script>
+</body>
+</html>
